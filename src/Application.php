@@ -16,6 +16,8 @@ declare(strict_types=1);
  */
 namespace App;
 
+use Authentication\AuthenticationService;
+use Authentication\Middleware\AuthenticationMiddleware;
 use Cake\Core\Configure;
 use Cake\Core\Exception\MissingPluginException;
 use Cake\Error\Middleware\ErrorHandlerMiddleware;
@@ -79,9 +81,40 @@ class Application extends BaseApplication
             // creating the middleware instance specify the cache config name by
             // using it's second constructor argument:
             // `new RoutingMiddleware($this, '_cake_routes_')`
-            ->add(new RoutingMiddleware($this));
+            ->add(new RoutingMiddleware($this))
+            // add Authentication, configure it in another method
+            ->add(new AuthenticationMiddleware($this->configAuth(), [
+                'unauthenticatedRedirect' => '/users/login',
+                'queryParam' => 'redirect',
+            ]));
 
         return $middlewareQueue;
+    }
+
+    protected function configAuth(): AuthenticationService
+    {
+        $authenticationService = new AuthenticationService();
+
+        // Load identifiers, ensure we check email and password fields
+        $authenticationService->loadIdentifier('Authentication.Password', [
+            'fields' => [
+                'username' => 'email',
+                'password' => 'password',
+            ]
+        ]);
+
+        // Load the authenticators, you want session first
+        $authenticationService->loadAuthenticator('Authentication.Session');
+        // Configure form data check to pick email and password
+        $authenticationService->loadAuthenticator('Authentication.Form', [
+            'fields' => [
+                'username' => 'email',
+                'password' => 'password',
+            ],
+            'loginUrl' => '/users/login',
+        ]);
+
+        return $authenticationService;
     }
 
     /**
